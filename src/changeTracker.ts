@@ -129,20 +129,6 @@ export class ChangeTracker implements vscode.Disposable {
   }
 
   /**
-   * Take a new snapshot (update baseline)
-   */
-  public takeNewSnapshot(): void {
-    if (!this.state.isTracking) {
-      vscode.window.showWarningMessage('Not currently tracking changes');
-      return;
-    }
-
-    this.snapshotManager.takeSnapshotOfAllOpen();
-    this.decorationProvider.refreshAll();
-    vscode.window.showInformationMessage('New snapshot taken - baseline updated');
-  }
-
-  /**
    * Accept all changes
    */
   public acceptAll(): void {

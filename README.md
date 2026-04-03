@@ -44,7 +44,6 @@ Perfect for:
 | `Vibe Changes: Open Review Panel` | `Ctrl+Shift+R` | Open the review panel |
 | `Vibe Changes: Accept All` | — | Accept all changes (update baseline) |
 | `Vibe Changes: Reject All` | — | Reject all changes (revert to snapshot) |
-| `Vibe Changes: Take New Snapshot` | — | Update baseline without stopping |
 
 ## How It Works
 

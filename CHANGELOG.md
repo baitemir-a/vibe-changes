@@ -24,8 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Vibe Changes: Stop Tracking` - Clear snapshots and stop
 - `Vibe Changes: Open Review Panel` - Open the review webview
 - `Vibe Changes: Accept All` - Accept all changes
-- `Vibe Changes: Reject All` - Reject all changes  
-- `Vibe Changes: Take New Snapshot` - Update baseline
+- `Vibe Changes: Reject All` - Reject all changes
 
 ## [Unreleased]
 

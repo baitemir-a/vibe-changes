@@ -42,10 +42,6 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('vibeChanges.rejectAll', () => {
       changeTracker?.rejectAll();
     }),
-
-    vscode.commands.registerCommand('vibeChanges.takeSnapshot', () => {
-      changeTracker?.takeNewSnapshot();
-    }),
   ];
 
   // Add all disposables to context
