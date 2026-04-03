@@ -27,6 +27,7 @@ Perfect for:
 2. **Make edits** — changes are highlighted in real-time
 3. **Review**: `Ctrl+Shift+R` to open the review panel
 4. **Accept or Reject** — update baseline or revert changes
+5. **Stop tracking**: `Ctrl+Shift+Y` to stop tracking
 
 ## Screenshots
 

@@ -74,6 +74,11 @@
         "command": "vibeChanges.openReview",
         "key": "ctrl+shift+r",
         "mac": "cmd+shift+r"
+      },
+      {
+        "command": "vibeChanges.stopTracking",
+        "key": "ctrl+shift+y",
+        "mac": "cmd+shift+y"
       }
     ],
     "configuration": {
