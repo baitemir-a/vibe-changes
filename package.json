@@ -1,0 +1,127 @@
+{
+  "name": "vibe-changes",
+  "displayName": "Vibe Changes",
+  "description": "Track and review code changes with session-based snapshots. Git-independent change tracking with inline highlights and review panel.",
+  "version": "0.1.0",
+  "publisher": "baitemir",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/baitemir-a/vibe-changes"
+  },
+  "bugs": {
+    "url": "https://github.com/baitemir-a/vibe-changes/issues"
+  },
+  "homepage": "https://github.com/baitemir-a/vibe-changes#readme",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "diff",
+    "changes",
+    "tracking",
+    "review",
+    "snapshot",
+    "code review"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vibeChanges.startTracking",
+        "title": "Start Tracking Changes",
+        "category": "Vibe Changes"
+      },
+      {
+        "command": "vibeChanges.stopTracking",
+        "title": "Stop Tracking Changes",
+        "category": "Vibe Changes"
+      },
+      {
+        "command": "vibeChanges.openReview",
+        "title": "Open Review Panel",
+        "category": "Vibe Changes"
+      },
+      {
+        "command": "vibeChanges.acceptAll",
+        "title": "Accept All Changes",
+        "category": "Vibe Changes"
+      },
+      {
+        "command": "vibeChanges.rejectAll",
+        "title": "Reject All Changes",
+        "category": "Vibe Changes"
+      },
+      {
+        "command": "vibeChanges.takeSnapshot",
+        "title": "Take New Snapshot",
+        "category": "Vibe Changes"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "vibeChanges.startTracking",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t"
+      },
+      {
+        "command": "vibeChanges.openReview",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r"
+      }
+    ],
+    "configuration": {
+      "title": "Vibe Changes",
+      "properties": {
+        "vibeChanges.highlightAddedLines": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlight added lines in green"
+        },
+        "vibeChanges.highlightRemovedLines": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show removed lines indicator"
+        },
+        "vibeChanges.addedLineColor": {
+          "type": "string",
+          "default": "rgba(40, 167, 69, 0.2)",
+          "description": "Background color for added lines"
+        },
+        "vibeChanges.removedLineColor": {
+          "type": "string",
+          "default": "rgba(220, 53, 69, 0.2)",
+          "description": "Background color for removed line indicators"
+        },
+        "vibeChanges.modifiedLineColor": {
+          "type": "string",
+          "default": "rgba(255, 193, 7, 0.2)",
+          "description": "Background color for modified lines"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "diff": "^5.1.0"
+  }
+}
