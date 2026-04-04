@@ -2,7 +2,7 @@
   "name": "vibe-changes",
   "displayName": "Vibe Changes",
   "description": "Track and review code changes with session-based snapshots. Git-independent change tracking with inline highlights and review panel.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "baitemir",
   "license": "MIT",
   "icon": "images/icon.png",
