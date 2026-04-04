@@ -1,6 +1,5 @@
 # Vibe Changes
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/YOUR-PUBLISHER-ID.vibe-changes?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=YOUR-PUBLISHER-ID.vibe-changes)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 **Session-based change tracking for VS Code** — track, highlight, and review code changes independently of Git.
@@ -11,15 +10,14 @@ Perfect for:
 - Quick code reviews during pair programming
 - Keeping focus on "what changed since I started"
 
-> 💡 Inspired by change tracking UI in modern AI-powered code editors.
-
 ## Features
 
-✨ **Session Snapshots** — Start tracking at any point, creates a baseline of your files  
-🎨 **Real-time Highlighting** — Added lines glow green, removed lines marked in gutter  
-📋 **Review Panel** — Dedicated UI to browse all changes with Accept/Reject controls  
-🎯 **Granular Control** — Accept or reject at file or hunk level  
-📊 **Status Bar** — Always see tracking status and file count  
+- **Full workspace tracking** — snapshots all workspace files on disk, not just open tabs
+- **Disk-backed snapshots** — files stored in a temp directory, not in memory, so large projects (26K+ files) work without issues
+- **Real-time highlighting** — added lines highlighted in green, removed lines marked in the gutter
+- **Review panel** — dedicated UI to browse all changes with accept/reject controls at hunk, file, or global level
+- **Smart file filtering** — automatically excludes `node_modules`, `.git`, binary files, build artifacts, and lock files
+- **Status bar** — always see tracking status and file count
 
 ## Quick Start
 
@@ -29,18 +27,12 @@ Perfect for:
 4. **Accept or Reject** — update baseline or revert changes
 5. **Stop tracking**: `Ctrl+Shift+Y` to stop tracking
 
-## Screenshots
-
-| Editor Highlighting | Review Panel |
-|---------------------|--------------|
-| ![Editor](https://via.placeholder.com/400x250?text=Editor+Highlighting) | ![Review](https://via.placeholder.com/400x250?text=Review+Panel) |
-
 ## Commands
 
 | Command | Keybinding | Description |
 |---------|------------|-------------|
-| `Vibe Changes: Start Tracking` | `Ctrl+Shift+T` | Create snapshot and start tracking |
-| `Vibe Changes: Stop Tracking` | — | Clear snapshots and stop |
+| `Vibe Changes: Start Tracking` | `Ctrl+Shift+T` | Snapshot all workspace files and start tracking |
+| `Vibe Changes: Stop Tracking` | `Ctrl+Shift+Y` | Clear snapshots and stop |
 | `Vibe Changes: Open Review Panel` | `Ctrl+Shift+R` | Open the review panel |
 | `Vibe Changes: Accept All` | — | Accept all changes (update baseline) |
 | `Vibe Changes: Reject All` | — | Reject all changes (revert to snapshot) |
@@ -48,11 +40,11 @@ Perfect for:
 ## How It Works
 
 ```
-[Start Tracking] → Snapshot all open files
+[Start Tracking] → Snapshot all workspace files to temp directory on disk
         ↓
-[Edit files] → Diff computed in real-time → Lines highlighted
+[Edit files] → Diff computed on demand → Lines highlighted
         ↓
-[Open Review] → See all changes grouped by file
+[Open Review] → Reads snapshots from disk, shows changes for open & modified files
         ↓
 [Accept] → Snapshot updated (new baseline)
 [Reject] → File reverted to snapshot
@@ -62,6 +54,15 @@ Perfect for:
 
 - **Accept** = "These changes are good, make them the new baseline"
 - **Reject** = "Undo these changes, go back to the snapshot"
+
+### What's Excluded
+
+The following are automatically excluded from tracking:
+- **Directories**: `node_modules`, `.git`, `.vscode`, `dist`, `out`, `build`, `.cache`, `.next`, `.nuxt`, `coverage`, `__pycache__`
+- **Binary files**: images, fonts, archives, executables, compiled objects, `.wasm`
+- **Lock files**: `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`
+- **Generated files**: `.map`, `.min.js`, `.min.css`, `.chunk.js`, `.bundle.js`
+- **Files larger than 1 MB**
 
 ## Settings
 
@@ -87,12 +88,6 @@ Perfect for:
 3. If it works → Accept
 4. If it breaks → Reject and try again
 
-### Quick Code Review
-1. Colleague makes changes to your file
-2. Start tracking, they edit
-3. Review their changes in the panel
-4. Discuss and accept/reject together
-
 ## Development
 
 ```bash
@@ -111,9 +106,9 @@ Contributions welcome! Some ideas:
 - [ ] Persist snapshots across VS Code restarts
 - [ ] Side-by-side diff view
 - [ ] Inline CodeLens accept/reject buttons
-- [ ] Ignore patterns (node_modules, etc.)
+- [ ] Custom ignore patterns configuration
 - [ ] Export changes as patch file
 
 ## License
 
-[MIT](LICENSE) © 2024
+[MIT](LICENSE)
