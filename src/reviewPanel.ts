@@ -7,7 +7,7 @@ export class ReviewPanel implements vscode.Disposable {
   public static currentPanel: ReviewPanel | undefined;
   private readonly panel: vscode.WebviewPanel;
   private disposables: vscode.Disposable[] = [];
-  
+
   private constructor(
     panel: vscode.WebviewPanel,
     private snapshotManager: SnapshotManager,
@@ -15,7 +15,7 @@ export class ReviewPanel implements vscode.Disposable {
     private extensionUri: vscode.Uri
   ) {
     this.panel = panel;
-    
+
     // Handle messages from webview
     this.panel.webview.onDidReceiveMessage(
       (message: WebviewMessage) => this.handleMessage(message),
@@ -29,12 +29,20 @@ export class ReviewPanel implements vscode.Disposable {
     // Update content when documents change
     this.disposables.push(
       vscode.workspace.onDidChangeTextDocument(() => {
-        this.updateContent();
+        this.scheduleUpdate();
       })
     );
 
-    // Initial content
+    // Set loading HTML immediately, then load real content
+    this.panel.webview.html = this.getLoadingHtml();
     this.updateContent();
+  }
+
+  private updateTimer: ReturnType<typeof setTimeout> | undefined;
+
+  private scheduleUpdate(): void {
+    if (this.updateTimer) clearTimeout(this.updateTimer);
+    this.updateTimer = setTimeout(() => this.updateContent(), 500);
   }
 
   public static createOrShow(
@@ -95,42 +103,37 @@ export class ReviewPanel implements vscode.Disposable {
         await this.openFile(message.payload.fileUri, message.payload.line);
         break;
       case 'refresh':
-        this.updateContent();
+        await this.updateContent();
         break;
     }
   }
 
   private async acceptHunk(fileUri: string, hunkId: string): Promise<void> {
-    // Accepting a hunk means updating the snapshot to include this change
     const uri = vscode.Uri.parse(fileUri);
     const document = await vscode.workspace.openTextDocument(uri);
-    this.snapshotManager.updateSnapshot(fileUri, document.getText());
-    this.updateContent();
+    await this.snapshotManager.updateSnapshot(fileUri, document.getText());
+    await this.updateContent();
     vscode.window.showInformationMessage('Change accepted');
   }
 
   private async rejectHunk(fileUri: string, hunkId: string): Promise<void> {
-    // Rejecting means reverting to snapshot
-    const snapshot = this.snapshotManager.getSnapshot(fileUri);
+    const snapshot = await this.snapshotManager.getSnapshot(fileUri);
     if (!snapshot) return;
 
     const uri = vscode.Uri.parse(fileUri);
     const document = await vscode.workspace.openTextDocument(uri);
     const currentContent = document.getText();
-    
-    // Get the specific hunk
+
     const fileChanges = this.diffEngine.computeDiff(
       snapshot.content,
       currentContent,
       fileUri,
       this.getFileName(fileUri)
     );
-    
+
     const hunk = fileChanges.hunks.find(h => h.id === hunkId);
     if (!hunk) return;
 
-    // For simplicity, we'll revert the entire file to snapshot
-    // A more sophisticated approach would surgically revert just the hunk
     const edit = new vscode.WorkspaceEdit();
     const fullRange = new vscode.Range(
       document.positionAt(0),
@@ -138,26 +141,26 @@ export class ReviewPanel implements vscode.Disposable {
     );
     edit.replace(uri, fullRange, snapshot.content);
     await vscode.workspace.applyEdit(edit);
-    
-    this.updateContent();
+
+    await this.updateContent();
     vscode.window.showInformationMessage('Change rejected - reverted to snapshot');
   }
 
   private async acceptFile(fileUri: string): Promise<void> {
     const uri = vscode.Uri.parse(fileUri);
     const document = await vscode.workspace.openTextDocument(uri);
-    this.snapshotManager.updateSnapshot(fileUri, document.getText());
-    this.updateContent();
+    await this.snapshotManager.updateSnapshot(fileUri, document.getText());
+    await this.updateContent();
     vscode.window.showInformationMessage(`All changes in ${this.getFileName(fileUri)} accepted`);
   }
 
   private async rejectFile(fileUri: string): Promise<void> {
-    const snapshot = this.snapshotManager.getSnapshot(fileUri);
+    const snapshot = await this.snapshotManager.getSnapshot(fileUri);
     if (!snapshot) return;
 
     const uri = vscode.Uri.parse(fileUri);
     const document = await vscode.workspace.openTextDocument(uri);
-    
+
     const edit = new vscode.WorkspaceEdit();
     const fullRange = new vscode.Range(
       document.positionAt(0),
@@ -165,8 +168,8 @@ export class ReviewPanel implements vscode.Disposable {
     );
     edit.replace(uri, fullRange, snapshot.content);
     await vscode.workspace.applyEdit(edit);
-    
-    this.updateContent();
+
+    await this.updateContent();
     vscode.window.showInformationMessage(`All changes in ${this.getFileName(fileUri)} rejected`);
   }
 
@@ -176,25 +179,25 @@ export class ReviewPanel implements vscode.Disposable {
       try {
         const uri = vscode.Uri.parse(fileUri);
         const document = await vscode.workspace.openTextDocument(uri);
-        this.snapshotManager.updateSnapshot(fileUri, document.getText());
-      } catch (e) {
+        await this.snapshotManager.updateSnapshot(fileUri, document.getText());
+      } catch {
         // File might have been deleted
       }
     }
-    this.updateContent();
+    await this.updateContent();
     vscode.window.showInformationMessage('All changes accepted');
   }
 
   private async rejectAll(): Promise<void> {
     const trackedUris = this.snapshotManager.getTrackedUris();
     for (const fileUri of trackedUris) {
-      const snapshot = this.snapshotManager.getSnapshot(fileUri);
+      const snapshot = await this.snapshotManager.getSnapshot(fileUri);
       if (!snapshot) continue;
 
       try {
         const uri = vscode.Uri.parse(fileUri);
         const document = await vscode.workspace.openTextDocument(uri);
-        
+
         const edit = new vscode.WorkspaceEdit();
         const fullRange = new vscode.Range(
           document.positionAt(0),
@@ -202,11 +205,11 @@ export class ReviewPanel implements vscode.Disposable {
         );
         edit.replace(uri, fullRange, snapshot.content);
         await vscode.workspace.applyEdit(edit);
-      } catch (e) {
+      } catch {
         // File might have been deleted
       }
     }
-    this.updateContent();
+    await this.updateContent();
     vscode.window.showInformationMessage('All changes rejected');
   }
 
@@ -214,7 +217,7 @@ export class ReviewPanel implements vscode.Disposable {
     const uri = vscode.Uri.parse(fileUri);
     const document = await vscode.workspace.openTextDocument(uri);
     const editor = await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
-    
+
     if (line !== undefined) {
       const position = new vscode.Position(line - 1, 0);
       editor.selection = new vscode.Selection(position, position);
@@ -222,27 +225,42 @@ export class ReviewPanel implements vscode.Disposable {
     }
   }
 
-  private updateContent(): void {
-    const allChanges = this.computeAllChanges();
+  private async updateContent(): Promise<void> {
+    const allChanges = await this.computeAllChanges();
     this.panel.webview.html = this.getHtmlContent(allChanges);
   }
 
-  private computeAllChanges(): FileChanges[] {
+  private async computeAllChanges(): Promise<FileChanges[]> {
     const changes: FileChanges[] = [];
     const trackedUris = this.snapshotManager.getTrackedUris();
 
     for (const uri of trackedUris) {
-      const snapshot = this.snapshotManager.getSnapshot(uri);
-      if (!snapshot) continue;
-
       try {
-        const document = vscode.workspace.textDocuments.find(
+        // Check if file is open in editor (fast path)
+        const openDoc = vscode.workspace.textDocuments.find(
           d => d.uri.toString() === uri
         );
-        
-        if (!document) continue;
 
-        const currentContent = document.getText();
+        let currentContent: string;
+
+        if (openDoc) {
+          currentContent = openDoc.getText();
+        } else {
+          // File not open — check if it changed on disk via mtime
+          const meta = this.snapshotManager.getSnapshotMeta(uri);
+          if (!meta) continue;
+
+          const fileUri = vscode.Uri.parse(uri);
+          const stat = await vscode.workspace.fs.stat(fileUri);
+          if (stat.mtime <= meta.timestamp) continue;
+
+          // mtime is newer than snapshot — read from disk
+          const raw = await vscode.workspace.fs.readFile(fileUri);
+          currentContent = Buffer.from(raw).toString('utf-8');
+        }
+
+        const snapshot = await this.snapshotManager.getSnapshot(uri);
+        if (!snapshot) continue;
         if (currentContent === snapshot.content) continue;
 
         const fileChanges = this.diffEngine.computeDiff(
@@ -255,12 +273,35 @@ export class ReviewPanel implements vscode.Disposable {
         if (fileChanges.hunks.length > 0) {
           changes.push(fileChanges);
         }
-      } catch (e) {
-        // File might not be open
+      } catch {
+        // File might not exist anymore
       }
     }
 
     return changes;
+  }
+
+  private getLoadingHtml(): string {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: var(--vscode-font-family);
+      color: var(--vscode-editor-foreground);
+      background: var(--vscode-editor-background);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <p>Loading changes...</p>
+</body>
+</html>`;
   }
 
   private getFileName(uri: string): string {
@@ -512,7 +553,7 @@ export class ReviewPanel implements vscode.Disposable {
 </head>
 <body>
   <div class="header">
-    <h1>📝 Review Changes</h1>
+    <h1>Review Changes</h1>
     <div class="stats">
       <span class="stat">${totalFiles} file${totalFiles !== 1 ? 's' : ''}</span>
       <span class="stat">${totalHunks} change${totalHunks !== 1 ? 's' : ''}</span>
@@ -523,9 +564,9 @@ export class ReviewPanel implements vscode.Disposable {
 
   ${totalFiles > 0 ? `
   <div class="global-actions">
-    <button class="btn-accept" onclick="acceptAll()">✓ Accept All</button>
-    <button class="btn-reject" onclick="rejectAll()">✕ Reject All</button>
-    <button class="btn-primary" onclick="refresh()">↻ Refresh</button>
+    <button class="btn-accept" onclick="acceptAll()">Accept All</button>
+    <button class="btn-reject" onclick="rejectAll()">Reject All</button>
+    <button class="btn-primary" onclick="refresh()">Refresh</button>
   </div>
 
   ${allChanges.map(file => this.renderFile(file)).join('')}
@@ -533,7 +574,7 @@ export class ReviewPanel implements vscode.Disposable {
   <div class="empty-state">
     <h2>No changes detected</h2>
     <p>Make some edits to tracked files to see them here.</p>
-    <button class="btn-primary" style="margin-top: 16px" onclick="refresh()">↻ Refresh</button>
+    <button class="btn-primary" style="margin-top: 16px" onclick="refresh()">Refresh</button>
   </div>
   `}
 
@@ -585,7 +626,7 @@ export class ReviewPanel implements vscode.Disposable {
     <div class="file-section">
       <div class="file-header" onclick="openFile('${this.escapeHtml(file.uri)}')">
         <span class="file-name">
-          📄 ${this.escapeHtml(file.fileName)}
+          ${this.escapeHtml(file.fileName)}
         </span>
         <div class="file-stats">
           <span class="stat added">+${file.totalAdded}</span>
@@ -593,8 +634,8 @@ export class ReviewPanel implements vscode.Disposable {
         </div>
       </div>
       <div class="file-actions" style="padding: 8px 14px; background: var(--bg-secondary); border-top: 1px solid var(--border-color);">
-        <button class="btn-accept btn-small" onclick="event.stopPropagation(); acceptFile('${this.escapeHtml(file.uri)}')">✓ Accept File</button>
-        <button class="btn-reject btn-small" onclick="event.stopPropagation(); rejectFile('${this.escapeHtml(file.uri)}')">✕ Reject File</button>
+        <button class="btn-accept btn-small" onclick="event.stopPropagation(); acceptFile('${this.escapeHtml(file.uri)}')">Accept File</button>
+        <button class="btn-reject btn-small" onclick="event.stopPropagation(); rejectFile('${this.escapeHtml(file.uri)}')">Reject File</button>
       </div>
       <div class="hunks-container">
         ${file.hunks.map(hunk => this.renderHunk(file.uri, hunk)).join('')}
@@ -604,7 +645,7 @@ export class ReviewPanel implements vscode.Disposable {
 
   private renderHunk(fileUri: string, hunk: Hunk): string {
     const diffLines = this.renderDiffLines(hunk);
-    
+
     return `
     <div class="hunk">
       <div class="hunk-header">
@@ -612,8 +653,8 @@ export class ReviewPanel implements vscode.Disposable {
           Lines ${hunk.startLine}-${hunk.endLine}
         </span>
         <div class="hunk-actions">
-          <button class="btn-accept btn-small" onclick="acceptHunk('${this.escapeHtml(fileUri)}', '${hunk.id}')">✓</button>
-          <button class="btn-reject btn-small" onclick="rejectHunk('${this.escapeHtml(fileUri)}', '${hunk.id}')">✕</button>
+          <button class="btn-accept btn-small" onclick="acceptHunk('${this.escapeHtml(fileUri)}', '${hunk.id}')">Accept</button>
+          <button class="btn-reject btn-small" onclick="rejectHunk('${this.escapeHtml(fileUri)}', '${hunk.id}')">Reject</button>
         </div>
       </div>
       <div class="diff-content">

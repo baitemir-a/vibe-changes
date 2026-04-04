@@ -33,19 +33,30 @@ export class ChangeTracker implements vscode.Disposable {
     // Listen for new documents being opened
     this.disposables.push(
       vscode.workspace.onDidOpenTextDocument(doc => {
-        if (this.state.isTracking && doc.uri.scheme === 'file') {
+        if (this.state.isTracking && doc.uri.scheme === 'file' && this.snapshotManager.shouldTrack(doc.uri.toString())) {
           this.snapshotManager.takeSnapshot(doc);
           this.state.trackedFiles.add(doc.uri.toString());
         }
       })
     );
 
+    // Refresh decorations on every text change (debounced inside decorationProvider)
+    this.disposables.push(
+      vscode.workspace.onDidChangeTextDocument(event => {
+        if (!this.state.isTracking) return;
+        const editor = vscode.window.activeTextEditor;
+        if (editor && editor.document === event.document) {
+          this.decorationProvider.updateDecorations(editor);
+        }
+      })
+    );
+
     // Listen for documents being saved
     this.disposables.push(
-      vscode.workspace.onDidSaveTextDocument(doc => {
-        if (this.state.isTracking) {
+      vscode.workspace.onDidSaveTextDocument(() => {
+        if (this.state.isTracking && vscode.window.activeTextEditor) {
           this.decorationProvider.updateDecorations(
-            vscode.window.activeTextEditor!
+            vscode.window.activeTextEditor
           );
         }
       })
@@ -55,31 +66,26 @@ export class ChangeTracker implements vscode.Disposable {
   /**
    * Start tracking changes
    */
-  public startTracking(): void {
+  public async startTracking(): Promise<void> {
     if (this.state.isTracking) {
       vscode.window.showInformationMessage('Already tracking changes');
       return;
     }
 
-    // Take snapshot of all open documents
-    this.snapshotManager.takeSnapshotOfAllOpen();
-    
-    // Track URIs
-    vscode.workspace.textDocuments.forEach(doc => {
-      if (doc.uri.scheme === 'file' && !doc.isUntitled) {
-        this.state.trackedFiles.add(doc.uri.toString());
-      }
-    });
-
-    // Activate decorations
-    this.decorationProvider.activate();
-
     this.state.isTracking = true;
     this.state.startTime = Date.now();
-    
+
+    // Snapshot ALL workspace files to temp dir on disk
+    const count = await this.snapshotManager.snapshotAllWorkspaceFiles();
+
+    for (const uri of this.snapshotManager.getTrackedUris()) {
+      this.state.trackedFiles.add(uri);
+    }
+
+    this.decorationProvider.activate();
     this.updateStatusBar();
     vscode.window.showInformationMessage(
-      `Tracking started. Monitoring ${this.state.trackedFiles.size} file(s).`
+      `Tracking started. Monitoring ${count} file(s).`
     );
   }
 
@@ -94,11 +100,11 @@ export class ChangeTracker implements vscode.Disposable {
 
     this.decorationProvider.deactivate();
     this.snapshotManager.clearAll();
-    
+
     this.state.isTracking = false;
     this.state.startTime = null;
     this.state.trackedFiles.clear();
-    
+
     this.updateStatusBar();
     vscode.window.showInformationMessage('Tracking stopped');
   }
@@ -109,15 +115,17 @@ export class ChangeTracker implements vscode.Disposable {
   public openReviewPanel(): void {
     if (!this.state.isTracking) {
       const action = 'Start Tracking';
-      vscode.window.showWarningMessage(
-        'Not currently tracking changes. Start tracking first.',
-        action
-      ).then(selection => {
-        if (selection === action) {
-          this.startTracking();
-          this.openReviewPanel();
-        }
-      });
+      vscode.window
+        .showWarningMessage(
+          'Not currently tracking changes. Start tracking first.',
+          action
+        )
+        .then(selection => {
+          if (selection === action) {
+            this.startTracking();
+            this.openReviewPanel();
+          }
+        });
       return;
     }
 
@@ -131,17 +139,19 @@ export class ChangeTracker implements vscode.Disposable {
   /**
    * Accept all changes
    */
-  public acceptAll(): void {
+  public async acceptAll(): Promise<void> {
     if (!this.state.isTracking) return;
 
-    this.snapshotManager.getTrackedUris().forEach(async uri => {
+    for (const uri of this.snapshotManager.getTrackedUris()) {
       try {
-        const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(uri));
-        this.snapshotManager.updateSnapshot(uri, document.getText());
-      } catch (e) {
+        const document = await vscode.workspace.openTextDocument(
+          vscode.Uri.parse(uri)
+        );
+        await this.snapshotManager.updateSnapshot(uri, document.getText());
+      } catch {
         // File might be closed or deleted
       }
-    });
+    }
 
     this.decorationProvider.refreshAll();
     vscode.window.showInformationMessage('All changes accepted');
@@ -154,13 +164,13 @@ export class ChangeTracker implements vscode.Disposable {
     if (!this.state.isTracking) return;
 
     for (const uri of this.snapshotManager.getTrackedUris()) {
-      const snapshot = this.snapshotManager.getSnapshot(uri);
+      const snapshot = await this.snapshotManager.getSnapshot(uri);
       if (!snapshot) continue;
 
       try {
         const docUri = vscode.Uri.parse(uri);
         const document = await vscode.workspace.openTextDocument(docUri);
-        
+
         const edit = new vscode.WorkspaceEdit();
         const fullRange = new vscode.Range(
           document.positionAt(0),
@@ -168,13 +178,15 @@ export class ChangeTracker implements vscode.Disposable {
         );
         edit.replace(docUri, fullRange, snapshot.content);
         await vscode.workspace.applyEdit(edit);
-      } catch (e) {
+      } catch {
         // File might be closed or deleted
       }
     }
 
     this.decorationProvider.refreshAll();
-    vscode.window.showInformationMessage('All changes rejected - reverted to snapshots');
+    vscode.window.showInformationMessage(
+      'All changes rejected - reverted to snapshots'
+    );
   }
 
   /**

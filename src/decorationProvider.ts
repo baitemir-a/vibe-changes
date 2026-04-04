@@ -8,9 +8,10 @@ export class DecorationProvider implements vscode.Disposable {
   private modifiedDecorationType: vscode.TextEditorDecorationType;
   private gutterAddedDecorationType: vscode.TextEditorDecorationType;
   private gutterRemovedDecorationType: vscode.TextEditorDecorationType;
-  
+
   private disposables: vscode.Disposable[] = [];
   private isActive: boolean = false;
+  private updateTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private snapshotManager: SnapshotManager,
@@ -18,7 +19,7 @@ export class DecorationProvider implements vscode.Disposable {
   ) {
     // Initialize decoration types with colors from settings
     const config = vscode.workspace.getConfiguration('vibeChanges');
-    
+
     this.addedDecorationType = vscode.window.createTextEditorDecorationType({
       backgroundColor: config.get('addedLineColor', 'rgba(40, 167, 69, 0.2)'),
       isWholeLine: true,
@@ -65,7 +66,7 @@ export class DecorationProvider implements vscode.Disposable {
    */
   public activate(): void {
     this.isActive = true;
-    
+
     // Decorate all visible editors
     vscode.window.visibleTextEditors.forEach(editor => {
       this.updateDecorations(editor);
@@ -87,7 +88,7 @@ export class DecorationProvider implements vscode.Disposable {
             e => e.document.uri.toString() === event.document.uri.toString()
           );
           if (editor) {
-            this.updateDecorations(editor);
+            this.scheduleUpdate(editor);
           }
         }
       })
@@ -107,40 +108,52 @@ export class DecorationProvider implements vscode.Disposable {
   }
 
   /**
+   * Debounce rapid text changes
+   */
+  private scheduleUpdate(editor: vscode.TextEditor): void {
+    if (this.updateTimer) clearTimeout(this.updateTimer);
+    this.updateTimer = setTimeout(() => this.updateDecorations(editor), 150);
+  }
+
+  /**
    * Stop decorating editors
    */
   public deactivate(): void {
     this.isActive = false;
+    if (this.updateTimer) clearTimeout(this.updateTimer);
     this.clearAllDecorations();
     this.disposables.forEach(d => d.dispose());
     this.disposables = [];
   }
 
   /**
-   * Update decorations for a specific editor
+   * Update decorations for a specific editor (async — reads snapshot from disk)
    */
-  public updateDecorations(editor: vscode.TextEditor): void {
+  public async updateDecorations(editor: vscode.TextEditor): Promise<void> {
     if (!this.isActive) return;
-    
+
     const uri = editor.document.uri.toString();
-    const snapshot = this.snapshotManager.getSnapshot(uri);
-    
+
+    if (!this.snapshotManager.hasSnapshot(uri)) {
+      this.clearDecorations(editor);
+      return;
+    }
+
+    const snapshot = await this.snapshotManager.getSnapshot(uri);
     if (!snapshot) {
-      // No snapshot - clear decorations
       this.clearDecorations(editor);
       return;
     }
 
     const currentContent = editor.document.getText();
-    
+
     if (currentContent === snapshot.content) {
-      // No changes - clear decorations
       this.clearDecorations(editor);
       return;
     }
 
     const changes = this.diffEngine.getChangeRanges(snapshot.content, currentContent);
-    
+
     // Create decoration ranges
     const addedRanges: vscode.DecorationOptions[] = changes.added.map(lineNum => ({
       range: new vscode.Range(lineNum - 1, 0, lineNum - 1, Number.MAX_SAFE_INTEGER),
