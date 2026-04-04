@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Custom ignore patterns configuration
 - Export changes as patch file
 
-## [0.2.0] - 2026-04-04
+## [0.1.1] - 2026-04-04
 
 ### Changed
 - **Disk-backed snapshots** — snapshot content is now stored in a temp directory on disk instead of in-memory `Map`. This eliminates out-of-memory crashes on large projects (tested with 26K+ files).
